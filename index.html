@@ -38,49 +38,56 @@
     <script>
         let allData = [];
 
+        // Ищем наш тестовый файл
         fetch('test.csv')
             .then(response => {
-                if (!response.ok) throw new Error('Файл data.csv не найден');
+                if (!response.ok) throw new Error('Файл не найден. Проверьте название.');
                 return response.text();
             })
             .then(csvText => {
+                // Разбиваем текст на строки
                 const lines = csvText.trim().split('\n');
                 
-                // Пропускаем первую строку (заголовки) и читаем данные
+                // Читаем со второй строки (пропускаем заголовки)
                 for (let i = 1; i < lines.length; i++) {
-                    // Разбиваем строку по запятым (учитывая возможные кавычки)
-                    const values = lines[i].match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g) || lines[i].split(',');
+                    const line = lines[i].trim();
+                    if (line === '') continue; // Пропускаем пустые строки
+
+                    // Разбиваем строку по запятым (самый простой способ)
+                    const values = line.split(',');
                     
-                    if (values && values.length >= 3) {
-                        // Берем данные строго по порядку столбцов: 1-й, 2-й, 3-й
+                    if (values.length >= 3) {
                         let row = {
-                            article: values[0].replace(/^"|"$/g, '').trim(),
-                            serial: values[1].replace(/^"|"$/g, '').trim(),
-                            container: values[2].replace(/^"|"$/g, '').trim()
+                            article: values[0].trim(),
+                            serial: values[1].trim(),
+                            container: values[2].trim()
                         };
                         allData.push(row);
                     }
                 }
 
+                // Выводим результат на экран
                 document.getElementById('status').textContent = `Загружено записей: ${allData.length}`;
                 renderTable(allData);
+                
+                // Выводим в консоль (F12), что мы прочитали, для проверки
+                console.log("Прочитанные данные:", allData);
+
             })
             .catch(error => {
                 document.getElementById('status').textContent = 'Ошибка загрузки данных.';
-                console.error(error);
+                console.error("Ошибка:", error);
             });
 
         function renderTable(data) {
             const tbody = document.getElementById('tableBody');
             tbody.innerHTML = '';
             
-            // Если ничего не нашли — пишем об этом
             if (data.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="3">Ничего не найдено</td></tr>';
                 return;
             }
             
-            // Показываем максимум 100 строк, чтобы браузер не завис на 300к записей
             const displayLimit = Math.min(data.length, 100);
             
             for (let i = 0; i < displayLimit; i++) {
@@ -89,16 +96,9 @@
                 tr.innerHTML = `<td>${row.article}</td><td>${row.serial}</td><td>${row.container}</td>`;
                 tbody.appendChild(tr);
             }
-            
-            // Если нашли больше 100, выводим приписку
-            if (data.length > 100) {
-                const tr = document.createElement('tr');
-                tr.innerHTML = `<td colspan="3" style="text-align:center; color:#666;">... и еще ${data.length - 100} записей. Уточните запрос.</td>`;
-                tbody.appendChild(tr);
-            }
         }
 
-        // Обработчик поиска (ищет по всем трем столбцам)
+        // Обработчик поиска
         document.getElementById('searchInput').addEventListener('input', (e) => {
             const query = e.target.value.toLowerCase().trim();
             if (query === '') {
