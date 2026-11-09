@@ -20,7 +20,7 @@
 <body>
     <div class="container">
         <h1>Поиск по серийному номеру</h1>
-        <input type="text" id="searchInput" placeholder="Введите серийный номер или его часть...">
+        <input type="text" id="searchInput" placeholder="Введите серийный номер, артикул или контейнер...">
         <div id="status" class="status">Загрузка данных...</div>
         <table id="resultsTable">
             <thead>
@@ -38,24 +38,26 @@
     <script>
         let allData = [];
 
-        // Загружаем CSV файл при открытии страницы
         fetch('data.csv')
             .then(response => {
                 if (!response.ok) throw new Error('Файл data.csv не найден');
                 return response.text();
             })
             .then(csvText => {
-                // Простой парсер CSV (работает, если в данных нет запятых внутри полей)
                 const lines = csvText.trim().split('\n');
-                const headers = lines[0].split(',').map(h => h.trim());
-
+                
+                // Пропускаем первую строку (заголовки) и читаем данные
                 for (let i = 1; i < lines.length; i++) {
-                    const values = lines[i].split(',').map(v => v.trim());
-                    if (values.length === headers.length) {
-                        let row = {};
-                        headers.forEach((header, index) => {
-                            row[header] = values[index];
-                        });
+                    // Разбиваем строку по запятым (учитывая возможные кавычки)
+                    const values = lines[i].match(/(".*?"|[^",\s]+)(?=\s*,|\s*$)/g) || lines[i].split(',');
+                    
+                    if (values && values.length >= 3) {
+                        // Берем данные строго по порядку столбцов: 1-й, 2-й, 3-й
+                        let row = {
+                            article: values[0].replace(/^"|"$/g, '').trim(),
+                            serial: values[1].replace(/^"|"$/g, '').trim(),
+                            container: values[2].replace(/^"|"$/g, '').trim()
+                        };
                         allData.push(row);
                     }
                 }
@@ -64,34 +66,49 @@
                 renderTable(allData);
             })
             .catch(error => {
-                document.getElementById('status').textContent = 'Ошибка загрузки данных. Убедитесь, что файл data.csv загружен в репозиторий.';
+                document.getElementById('status').textContent = 'Ошибка загрузки данных.';
                 console.error(error);
             });
 
-        // Функция отрисовки таблицы
         function renderTable(data) {
             const tbody = document.getElementById('tableBody');
             tbody.innerHTML = '';
+            
+            // Если ничего не нашли — пишем об этом
             if (data.length === 0) {
                 tbody.innerHTML = '<tr><td colspan="3">Ничего не найдено</td></tr>';
                 return;
             }
-            data.forEach(row => {
+            
+            // Показываем максимум 100 строк, чтобы браузер не завис на 300к записей
+            const displayLimit = Math.min(data.length, 100);
+            
+            for (let i = 0; i < displayLimit; i++) {
+                const row = data[i];
                 const tr = document.createElement('tr');
-                tr.innerHTML = `<td>${row.article || ''}</td><td>${row.serial || ''}</td><td>${row.container || ''}</td>`;
+                tr.innerHTML = `<td>${row.article}</td><td>${row.serial}</td><td>${row.container}</td>`;
                 tbody.appendChild(tr);
-            });
+            }
+            
+            // Если нашли больше 100, выводим приписку
+            if (data.length > 100) {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `<td colspan="3" style="text-align:center; color:#666;">... и еще ${data.length - 100} записей. Уточните запрос.</td>`;
+                tbody.appendChild(tr);
+            }
         }
 
-        // Обработчик поиска — строго по полю serial, по принципу "содержит"
+        // Обработчик поиска (ищет по всем трем столбцам)
         document.getElementById('searchInput').addEventListener('input', (e) => {
             const query = e.target.value.toLowerCase().trim();
             if (query === '') {
-                renderTable(allData);
+                renderTable([]); // Если пусто, ничего не показываем
                 return;
             }
             const filtered = allData.filter(row => {
-                return String(row.serial || '').toLowerCase().includes(query);
+                return row.article.toLowerCase().includes(query) || 
+                       row.serial.toLowerCase().includes(query) || 
+                       row.container.toLowerCase().includes(query);
             });
             renderTable(filtered);
         });
