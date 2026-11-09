@@ -38,7 +38,7 @@
     <script>
         let allData = [];
 
-        fetch('data.csv')
+        fetch('test.csv')
             .then(response => {
                 if (!response.ok) throw new Error('Файл data.csv не найден');
                 return response.text();
