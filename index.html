@@ -37,47 +37,29 @@
 
     <script>
         let allData = [];
+        // Здесь перечислены ваши три файла
+        const files = ['data-part1.json', 'data-part2.json', 'data-part3.json']; 
 
-        // Ищем наш тестовый файл
-        fetch('test.csv')
-            .then(response => {
-                if (!response.ok) throw new Error('Файл не найден. Проверьте название.');
-                return response.text();
-            })
-            .then(csvText => {
-                // Разбиваем текст на строки
-                const lines = csvText.trim().split('\n');
-                
-                // Читаем со второй строки (пропускаем заголовки)
-                for (let i = 1; i < lines.length; i++) {
-                    const line = lines[i].trim();
-                    if (line === '') continue; // Пропускаем пустые строки
+        document.getElementById('status').textContent = 'Загрузка данных (это может занять пару секунд)...';
 
-                    // Разбиваем строку по запятым (самый простой способ)
-                    const values = line.split(',');
-                    
-                    if (values.length >= 3) {
-                        let row = {
-                            article: values[0].trim(),
-                            serial: values[1].trim(),
-                            container: values[2].trim()
-                        };
-                        allData.push(row);
-                    }
-                }
-
-                // Выводим результат на экран
-                document.getElementById('status').textContent = `Загружено записей: ${allData.length}`;
-                renderTable(allData);
-                
-                // Выводим в консоль (F12), что мы прочитали, для проверки
-                console.log("Прочитанные данные:", allData);
-
-            })
-            .catch(error => {
-                document.getElementById('status').textContent = 'Ошибка загрузки данных.';
-                console.error("Ошибка:", error);
-            });
+        // Загружаем все файлы параллельно и объединяем их
+        Promise.all(files.map(file => 
+            fetch(file)
+                .then(res => {
+                    if (!res.ok) throw new Error(`Файл ${file} не найден`);
+                    return res.json();
+                })
+        ))
+        .then(results => {
+            // results — это массив из 3 массивов. Метод flat() объединяет их в один.
+            allData = results.flat();
+            document.getElementById('status').textContent = `Загружено записей: ${allData.length}`;
+            console.log("Все данные успешно загружены!");
+        })
+        .catch(error => {
+            document.getElementById('status').textContent = 'Ошибка загрузки данных. Проверьте консоль (F12).';
+            console.error("Ошибка:", error);
+        });
 
         function renderTable(data) {
             const tbody = document.getElementById('tableBody');
@@ -88,29 +70,43 @@
                 return;
             }
             
+            // Показываем максимум 100 строк, чтобы браузер не завис
             const displayLimit = Math.min(data.length, 100);
             
             for (let i = 0; i < displayLimit; i++) {
                 const row = data[i];
                 const tr = document.createElement('tr');
-                tr.innerHTML = `<td>${row.article}</td><td>${row.serial}</td><td>${row.container}</td>`;
+                tr.innerHTML = `<td>${row.article || ''}</td><td>${row.serial || ''}</td><td>${row.container || ''}</td>`;
+                tbody.appendChild(tr);
+            }
+            
+            if (data.length > 100) {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `<td colspan="3" style="text-align:center; color:#666;">... и еще ${data.length - 100} записей. Уточните запрос.</td>`;
                 tbody.appendChild(tr);
             }
         }
 
-        // Обработчик поиска
+        // Умный поиск с задержкой (debounce)
+        let searchTimeout;
         document.getElementById('searchInput').addEventListener('input', (e) => {
-            const query = e.target.value.toLowerCase().trim();
-            if (query === '') {
-                renderTable([]); // Если пусто, ничего не показываем
-                return;
-            }
-            const filtered = allData.filter(row => {
-                return row.article.toLowerCase().includes(query) || 
-                       row.serial.toLowerCase().includes(query) || 
-                       row.container.toLowerCase().includes(query);
-            });
-            renderTable(filtered);
+            clearTimeout(searchTimeout);
+            
+            searchTimeout = setTimeout(() => {
+                const query = e.target.value.toLowerCase().trim();
+                if (query === '') {
+                    renderTable([]); 
+                    return;
+                }
+                const filtered = allData.filter(row => {
+                    const art = (row.article || '').toLowerCase();
+                    const ser = (row.serial || '').toLowerCase();
+                    const con = (row.container || '').toLowerCase();
+                    
+                    return art.includes(query) || ser.includes(query) || con.includes(query);
+                });
+                renderTable(filtered);
+            }, 300); // 300 мс задержки
         });
     </script>
 </body>
